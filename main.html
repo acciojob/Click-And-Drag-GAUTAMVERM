@@ -22,6 +22,7 @@
       font-family: sans-serif;
       font-size: 20px;
       margin: 0;
+      overflow: hidden;
     }
 
     .items {
@@ -33,20 +34,19 @@
       overflow-y: hidden;
       white-space: nowrap;
       user-select: none;
-      cursor: pointer;
+      cursor: grab;
       transition: all 0.2s;
       transform: scale(0.98);
       will-change: transform;
       position: relative;
       background: rgba(255,255,255,0.1);
       font-size: 0;
-      perspective: 500px;
+      perspective: 1000px;
     }
 
     .items.active {
       background: rgba(255,255,255,0.3);
       cursor: grabbing;
-      cursor: -webkit-grabbing;
       transform: scale(1);
     }
 
@@ -61,14 +61,17 @@
       color: rgba(0,0,0,0.15);
       box-shadow: inset 0 0 0 10px rgba(0,0,0,0.15);
       margin: 0 10px;
-      transition: transform 0.15s;
+      transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
       position: relative;
+      transform-style: preserve-3d;
     }
 
     .item.dragging {
-      opacity: 0.8;
-      transform: scale(1.1) !important;
-      z-index: 10;
+      opacity: 0.9;
+      transform: scale(1.2) !important;
+      z-index: 100;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+      transition: transform 0.1s;
     }
 
     .item:nth-child(9n+1) { background: dodgerblue;}
@@ -81,8 +84,8 @@
     .item:nth-child(9n+8) { background: darkslateblue;}
     .item:nth-child(9n+9) { background: rebeccapurple;}
 
-    .item:nth-child(even) { transform: scaleX(1.31) rotateY(40deg); }
-    .item:nth-child(odd) { transform: scaleX(1.31) rotateY(-40deg); }
+    .item:nth-child(even) { transform: scaleX(1.31) rotateY(30deg); }
+    .item:nth-child(odd) { transform: scaleX(1.31) rotateY(-30deg); }
   </style>
 </head>
 <body>
@@ -119,98 +122,129 @@
     const itemsContainer = document.querySelector('.items');
     const items = document.querySelectorAll('.item');
     
-    let isDragging = false;
+    let isDraggingContainer = false;
+    let isDraggingItem = false;
     let startX, startY;
-    let scrollLeft, scrollTop;
+    let scrollLeft;
     let activeItem = null;
     let initialX, initialY;
     let currentX, currentY;
+    let offsetX = 0, offsetY = 0;
     
     // Container scroll on drag
     itemsContainer.addEventListener('mousedown', (e) => {
       if (e.target.classList.contains('item')) {
-        // Item drag will be handled separately
+        // Let item drag handle this
         return;
       }
       
-      isDragging = true;
+      isDraggingContainer = true;
       itemsContainer.classList.add('active');
       startX = e.pageX - itemsContainer.offsetLeft;
       scrollLeft = itemsContainer.scrollLeft;
     });
     
     itemsContainer.addEventListener('mouseleave', () => {
-      isDragging = false;
-      itemsContainer.classList.remove('active');
+      if (isDraggingContainer) {
+        isDraggingContainer = false;
+        itemsContainer.classList.remove('active');
+      }
     });
     
     itemsContainer.addEventListener('mouseup', () => {
-      isDragging = false;
-      itemsContainer.classList.remove('active');
+      if (isDraggingContainer) {
+        isDraggingContainer = false;
+        itemsContainer.classList.remove('active');
+      }
     });
     
     itemsContainer.addEventListener('mousemove', (e) => {
-      if (!isDragging) return;
-      e.preventDefault();
-      const x = e.pageX - itemsContainer.offsetLeft;
-      const walk = (x - startX) * 2; // Scroll speed multiplier
-      itemsContainer.scrollLeft = scrollLeft - walk;
+      if (isDraggingContainer) {
+        e.preventDefault();
+        const x = e.pageX - itemsContainer.offsetLeft;
+        const walk = (x - startX) * 2;
+        itemsContainer.scrollLeft = scrollLeft - walk;
+      }
     });
     
     // Individual item dragging
     items.forEach(item => {
       item.addEventListener('mousedown', dragStart);
-      item.addEventListener('mouseup', dragEnd);
-      item.addEventListener('mouseleave', dragEnd);
     });
     
     document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', dragEnd);
     
     function dragStart(e) {
+      if (isDraggingContainer) return;
+      
       activeItem = this;
+      isDraggingItem = true;
       activeItem.classList.add('dragging');
       
       // Store initial positions
       initialX = e.clientX;
       initialY = e.clientY;
       
-      // Get current position (relative to viewport)
-      const rect = activeItem.getBoundingClientRect();
-      currentX = rect.left;
-      currentY = rect.top;
+      // Get current transform values
+      const transform = window.getComputedStyle(activeItem).transform;
+      if (transform !== 'none') {
+        const matrix = transform.match(/^matrix\((.+)\)$/);
+        if (matrix) {
+          const values = matrix[1].split(', ');
+          offsetX = parseFloat(values[4]) || 0;
+          offsetY = parseFloat(values[5]) || 0;
+        }
+      }
       
-      // Prevent text selection during drag
       e.preventDefault();
     }
     
     function drag(e) {
-      if (!activeItem) return;
+      if (!isDraggingItem || !activeItem) return;
       
       // Calculate new position
       const dx = e.clientX - initialX;
       const dy = e.clientY - initialY;
       
-      // Apply new position
-      activeItem.style.transform = `translate(${dx}px, ${dy}px) scaleX(1.31)`;
+      // Apply new position with smooth transition
+      activeItem.style.transform = `translate(${offsetX + dx}px, ${offsetY + dy}px) scale(1.2) rotateY(0deg)`;
       
-      // Remove perspective rotation during drag
-      if (activeItem.classList.contains('dragging')) {
-        activeItem.style.transform = `translate(${dx}px, ${dy}px) scale(1.1)`;
+      // Update container scroll if dragging near edges
+      const rect = activeItem.getBoundingClientRect();
+      const containerRect = itemsContainer.getBoundingClientRect();
+      const threshold = 100;
+      
+      if (rect.right > containerRect.right - threshold) {
+        itemsContainer.scrollLeft += 10;
+      } else if (rect.left < containerRect.left + threshold) {
+        itemsContainer.scrollLeft -= 10;
       }
     }
     
     function dragEnd() {
-      if (!activeItem) return;
+      if (!isDraggingItem || !activeItem) return;
       
-      // Snap back to original position (or implement custom drop logic)
-      activeItem.style.transform = '';
+      isDraggingItem = false;
       
-      // Reset item
+      // Snap back to original position with 3D effect
+      const index = Array.from(items).indexOf(activeItem);
+      const transform = index % 2 === 0 ? 'rotateY(-30deg)' : 'rotateY(30deg)';
+      activeItem.style.transform = `scaleX(1.31) ${transform}`;
+      
+      // Reset item after transition
       setTimeout(() => {
         activeItem.classList.remove('dragging');
         activeItem = null;
-      }, 0);
+      }, 300);
     }
+    
+    // Prevent text selection during drag
+    document.addEventListener('selectstart', (e) => {
+      if (isDraggingContainer || isDraggingItem) {
+        e.preventDefault();
+      }
+    });
   });
 </script>
 </body>
