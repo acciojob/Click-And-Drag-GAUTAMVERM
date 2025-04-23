@@ -34,41 +34,37 @@
     <div class="item item25">25</div>
   </div>
 
-<script>
-//Your code goes here 
+  <script>
+    const slider = document.querySelector('.items');
+    let isDown = false;
+    let startX;
+    let scrollLeft;
 
-  const slider = document.querySelector('.items');
-  let isDown = false;
-  let startX = 0;
-  let scrollLeft = 0;
+    slider.addEventListener('mousedown', (e) => {
+      isDown = true;
+      slider.classList.add('active');
+      startX = e.pageX - slider.offsetLeft;
+      scrollLeft = slider.scrollLeft;
+    });
 
-  slider.addEventListener('mousedown', (e) => {
-    isDown = true;
-    slider.classList.add('active');
-    startX = e.clientX || e.pageX; // More reliable in Cypress
-    scrollLeft = slider.scrollLeft;
-  });
+    slider.addEventListener('mouseleave', () => {
+      isDown = false;
+      slider.classList.remove('active');
+    });
 
-  slider.addEventListener('mouseleave', () => {
-    isDown = false;
-    slider.classList.remove('active');
-  });
+    slider.addEventListener('mouseup', () => {
+      isDown = false;
+      slider.classList.remove('active');
+    });
 
-  slider.addEventListener('mouseup', () => {
-    isDown = false;
-    slider.classList.remove('active');
-  });
-
-  slider.addEventListener('mousemove', (e) => {
-    if (!isDown) return;
-    e.preventDefault();
-    const x = e.clientX || e.pageX;
-    const walk = (x - startX) * 2; // Speed multiplier
-    slider.scrollLeft = scrollLeft - walk;
-  });
-
-
-</script>
+    slider.addEventListener('mousemove', (e) => {
+      if (!isDown) return;
+      e.preventDefault();
+      const x = e.pageX - slider.offsetLeft;
+      const walk = (x - startX) * 2; // Multiplied for faster scroll
+      slider.scrollLeft = scrollLeft - walk;
+    });
+  </script>
 
   </body>
 </html>
